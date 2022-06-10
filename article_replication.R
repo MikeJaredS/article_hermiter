@@ -25,7 +25,7 @@ set.seed(10)
 #' full version which would take several hours of run-time.
 
 #+ set_run_count, echo=TRUE
-short_run <- FALSE
+short_run <- TRUE
 if (short_run == TRUE){
   total_number_of_runs <- 10
 } else {
@@ -37,8 +37,8 @@ if (short_run == TRUE){
 
 #+ reproduce_univar, echo=TRUE
 observations <- rlogis(n=2000)
-hermite_est <- hermite_estimator(N=10, standardize=TRUE)
-hermite_est <- update_batch(hermite_est, observations)
+hermite_est <- hermite_estimator(N=10, standardize=TRUE, 
+                                 observations = observations)
 x <- seq(-15,15,0.1)
 pdf_est <- dens(hermite_est,x)
 cdf_est <- cum_prob(hermite_est,x)
@@ -82,8 +82,8 @@ observations_mat <- mvtnorm::rmvnorm(n=num_obs,mean=rep(0,2),
                                                     rho*sig_x*sig_y,sig_y^2), 
                                                   nrow=2,ncol=2, byrow = TRUE))
 hermite_est <- hermite_estimator(N = 30, standardize = TRUE, 
-                                 est_type = "bivariate") 
-hermite_est <-  update_batch(hermite_est,observations_mat)
+                                 est_type = "bivariate", 
+                                 observations = observations_mat) 
 vals <- seq(-5,5,by=0.25)
 x_grid <- as.matrix(expand.grid(X=vals, Y=vals))
 pdf_est <- dens(hermite_est,x_grid, clipped = TRUE)
@@ -156,16 +156,14 @@ print(round(kendall_est,3))
 #' **Figure 6** in the text.
 
 #+ benchmark_updating, echo=TRUE
-h_est_10 <- hermite_estimator(N = 10, standardize = T)
-h_est_20 <- hermite_estimator(N = 20, standardize = T)
-h_est_30 <- hermite_estimator(N = 30, standardize = T)
 obs <- rnorm(1e6)
 bench_res <- microbenchmark::microbenchmark(
-  t_digest = td <- tdigest(obs),
-  hermite_N_10 = update_batch(h_est_10, obs),
-  hermite_N_20 = update_batch(h_est_20, obs),
-  hermite_N_30 = update_batch(h_est_30, obs),
-  times = 100
+  t_digest = tdigest(obs),
+  hermite_N_10 = hermite_estimator(N = 10, standardize = T, observations = obs),
+  hermite_N_20 = hermite_estimator(N = 20, standardize = T, observations = obs),
+  hermite_N_30 = hermite_estimator(N = 30, standardize = T, observations = obs),
+  hermite_N_50 = hermite_estimator(N = 50, standardize = T, observations = obs),
+  times = 20
 )
 autoplot(bench_res, log = TRUE)
 print(bench_res)
@@ -177,7 +175,7 @@ print(bench_res)
 obs <- rnorm(1e6)
 td <- tdigest(obs)
 h_est <-
-  hermite_estimator(N = 30, standardize = T)  %>% update_batch(obs)
+  hermite_estimator(N = 30, standardize = T, observations = obs)
 p_1 <- 0.5
 p_100 <- seq(0.01, 1, 0.01)
 p_10000 <- seq(0.0001, 1, 0.0001)
@@ -202,11 +200,12 @@ print(bench_res)
 #' Univariate simulation study comparing hermiter and tdigest for quantile
 #' estimation.
 
-#+ calculate_miae, echo=TRUE
-calculate_miae <- function(full_miae = FALSE) {
+#+ calculate_miae_per_distro, echo=TRUE
+calculate_miae_per_distro <- function(full_miae = FALSE) {
   distros_index <- c(1:5, 7:8, 11, 13:17, 21:28)
   numruns <- total_number_of_runs
   num_obs_vec <- c(1e4, 1e5, 1e6, 1e7)
+  # num_obs_vec <- c(1e4, 1e5, 1e6)
   if (full_miae == TRUE) {
     p <- randtoolbox::sobol(1000)
     norm_factor <- 1
@@ -238,8 +237,7 @@ calculate_miae <- function(full_miae = FALSE) {
       res_t_digest_quant <- rep(0, numruns)
       for (run in c(1:numruns)) {
         obs <- r_func(num_obs)
-        h_est <- hermite_estimator(N = 30, standardize = T) %>%
-          update_batch(obs)
+        h_est <- hermite_estimator(N = 30, standardize = T, observations = obs)
         td <- tdigest(obs)
         q_est_hermite <- h_est %>% quant(p)
         q_est_t_digest <- quantile(td, probs = p)
@@ -268,7 +266,12 @@ calculate_miae <- function(full_miae = FALSE) {
   result <- result %>% mutate(hermite_better_quant =
                                 ifelse(mae_hermite_quant < mae_t_digest_quant, 
                                        1, 0))
-  univariate_quantile_results <- result %>%
+  return(result)
+}
+
+#+ calculate_miae, echo=TRUE
+calculate_miae <- function(miae_per_distro) {
+  univariate_quantile_results <- miae_per_distro %>%
     group_by(num_obs) %>%
     summarise(
       num_herm_better = sum(hermite_better_quant),
@@ -278,10 +281,16 @@ calculate_miae <- function(full_miae = FALSE) {
     )
   return(univariate_quantile_results)
 }
+
+univar_quant_results_partial_per_distro <-
+  calculate_miae_per_distro(full_miae = FALSE)
+univar_quant_results_full_per_distro <- 
+  calculate_miae_per_distro(full_miae = TRUE)
+
 univar_quant_results_partial <-
-  calculate_miae(full_miae = FALSE)
+  calculate_miae(univar_quant_results_partial_per_distro)
 univar_quant_results_full <- 
-  calculate_miae(full_miae = TRUE)
+  calculate_miae(univar_quant_results_full_per_distro)
 
 #' Reproduces **Table 3** in the text:
 #' 
@@ -289,6 +298,24 @@ print(univar_quant_results_full)
 #' Reproduces **Table 4** in the text:
 #' 
 print(univar_quant_results_partial)
+
+univar_quant_results_partial_per_distro <- 
+  univar_quant_results_partial_per_distro %>% 
+  select(-c(hermite_better_quant)) 
+univar_quant_results_partial_per_distro <- univar_quant_results_partial_per_distro %>% relocate(num_obs,.before=distribution_name)
+univar_quant_results_partial_per_distro <- univar_quant_results_partial_per_distro %>% mutate(mae_hermite_quant = 1e2 *mae_hermite_quant,
+                                                                                              mae_t_digest_quant = 1e2 * mae_t_digest_quant)
+# colnames(univar_quant_results_partial_per_distro) <- c()
+kable(univar_quant_results_partial_per_distro , booktabs = TRUE,digits = 3,format = "html") %>% pack_rows(
+  index = c("n = 10,000" = 21, "n = 100,000" = 21)
+) %>% add_header_above(c(" " = 1, "Hermite" = 1, "t_digest" = 1)) %>% 
+  add_header_above(c("Distribution" = 1, "MIAE" = 2)) 
+
+univar_quant_results_partial_per_distro_form <- univar_quant_results_partial_per_distro
+colnames(univar_quant_results_partial_per_distro_form) <- c()
+kable(univar_quant_results_partial_per_distro_form , booktabs = TRUE,digits = 1,format = "html") %>% 
+  add_header_above(c(" "=1, " "=1, "Hermite" = 1, "t_digest" = 1)) %>% 
+  add_header_above(c("Observations" = 1, "Distribution" = 1, "MIAE (x 10^-2)" = 2)) 
 
 
 #' R implementation of count matrix algorithm of Xiao, Wei. "Novel online

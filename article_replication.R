@@ -1,7 +1,7 @@
-#' Replication output for article, "hermiter: R package for Sequential 
-#' Nonparametric Estimation". The output below corresponds to the output 
+#' Replication output for article, "hermiter: R package for Sequential
+#' Nonparametric Estimation". The output below corresponds to the output
 #' produced by running knitr::spin() on the article_replication.R script,
-#' with short_run set to FALSE. 
+#' with short_run set to TRUE.
 #'
 #' Load libraries.
 
@@ -14,13 +14,14 @@ library(dplyr)
 library(randtoolbox)
 library(ggplot2)
 library(patchwork)
+library(arrow)
 
 #' Set random seed for reproducibility.
 
 #+ set_rand_seed, echo=TRUE
 set.seed(10)
 
-#' Choose whether to run quick version of reproduction script i.e. under 
+#' Choose whether to run quick version of reproduction script i.e. under
 #' an hour of processing time on hardware specified in manuscript versus
 #' full version which would take several hours of run-time.
 
@@ -32,13 +33,12 @@ if (short_run == TRUE){
   total_number_of_runs <- 100
 }
 
-#' Reproduce univariate PDF, CDF and Q-Q plot figures i.e. **Figures 1, 2, 3** 
+#' Reproduce univariate PDF, CDF and Q-Q plot figures i.e. **Figures 1, 2, 3**
 #' in the text respectively.
 
 #+ reproduce_univar, echo=TRUE
-observations <- rlogis(n=2000)
-hermite_est <- hermite_estimator(N=10, standardize=TRUE, 
-                                 observations = observations)
+observations <- rlogis(n=5000)
+hermite_est <- hermite_estimator(observations = observations)
 x <- seq(-15,15,0.1)
 pdf_est <- dens(hermite_est,x)
 cdf_est <- cum_prob(hermite_est,x)
@@ -52,13 +52,13 @@ df_quant <- data.frame(p,quantile_est,actual_quantiles)
 
 ggplot(df_pdf_cdf,aes(x=x)) + geom_line(aes(y=pdf_est, colour="Estimated")) +
   geom_line(aes(y=actual_pdf, colour="Actual")) +
-  scale_colour_manual("", 
+  scale_colour_manual("",
                       breaks = c("Estimated", "Actual"),
                       values = c("blue", "black")) + ylab("Probability Density")
 
 ggplot(df_pdf_cdf,aes(x=x)) + geom_line(aes(y=cdf_est, colour="Estimated")) +
   geom_line(aes(y=actual_cdf, colour="Actual")) +
-  scale_colour_manual("", 
+  scale_colour_manual("",
                       breaks = c("Estimated", "Actual"),
                       values = c("blue", "black")) +
   ylab("Cumulative Probability")
@@ -75,15 +75,14 @@ ggplot(df_quant,aes(x=actual_quantiles)) + geom_point(aes(y=quantile_est),
 #+ reproduce_bivar_fig, echo=TRUE
 sig_x <- 1
 sig_y <- 1
-num_obs <- 4000
+num_obs <- 5000
 rho <- 0.5
 observations_mat <- mvtnorm::rmvnorm(n=num_obs,mean=rep(0,2),
                                      sigma = matrix(c(sig_x^2,rho*sig_x*sig_y,
-                                                    rho*sig_x*sig_y,sig_y^2), 
+                                                    rho*sig_x*sig_y,sig_y^2),
                                                   nrow=2,ncol=2, byrow = TRUE))
-hermite_est <- hermite_estimator(N = 30, standardize = TRUE, 
-                                 est_type = "bivariate", 
-                                 observations = observations_mat) 
+hermite_est <- hermite_estimator(est_type = "bivariate",
+                                 observations = observations_mat)
 vals <- seq(-5,5,by=0.25)
 x_grid <- as.matrix(expand.grid(X=vals, Y=vals))
 pdf_est <- dens(hermite_est,x_grid, clipped = TRUE)
@@ -91,16 +90,16 @@ cdf_est <- cum_prob(hermite_est,x_grid,clipped = TRUE)
 spear_est <- spearmans(hermite_est)
 kendall_est <- kendall(hermite_est)
 actual_pdf <-mvtnorm::dmvnorm(x_grid,mean=rep(0,2),
-                              sigma = matrix(c(sig_x^2,rho*sig_x*sig_y, 
-                                               rho*sig_x*sig_y,sig_y^2), 
+                              sigma = matrix(c(sig_x^2,rho*sig_x*sig_y,
+                                               rho*sig_x*sig_y,sig_y^2),
                                              nrow=2,ncol=2, byrow = TRUE))
 actual_cdf <- rep(NA,nrow(x_grid))
 for (row_idx in seq_len(nrow(x_grid))) {
   actual_cdf[row_idx] <-  mvtnorm::pmvnorm(lower = c(-Inf,-Inf),
-                                           upper=as.numeric(x_grid[row_idx,]), 
-                                           mean=rep(0,2), sigma = 
-                                          matrix(c(sig_x^2, rho*sig_x*sig_y, 
-                                           rho*sig_x*sig_y,sig_y^2), nrow=2, 
+                                           upper=as.numeric(x_grid[row_idx,]),
+                                           mean=rep(0,2), sigma =
+                                          matrix(c(sig_x^2, rho*sig_x*sig_y,
+                                           rho*sig_x*sig_y,sig_y^2), nrow=2,
                                            ncol=2, byrow = TRUE))
 }
 actual_spearmans <- cor(observations_mat,method = "spearman")[1,2]
@@ -109,14 +108,14 @@ df_pdf_cdf <- data.frame(x_grid,pdf_est,cdf_est,actual_pdf,actual_cdf)
 
 p1 <- ggplot(df_pdf_cdf) + geom_tile(aes(X, Y, fill= actual_pdf)) +
   scale_fill_gradient2(low="blue", mid="cyan", high="purple",
-                       midpoint=.1,    
-                       breaks=seq(0,.2,by=.05), 
-                       limits=c(0,.2))  
+                       midpoint=.1,
+                       breaks=seq(0,.2,by=.05),
+                       limits=c(0,.2))
 
 p2 <- ggplot(df_pdf_cdf) + geom_tile(aes(X, Y, fill= pdf_est)) +
   scale_fill_gradient2(low="blue", mid="cyan", high="purple",
                        midpoint=.1,
-                       breaks=seq(0,.2,by=.05), 
+                       breaks=seq(0,.2,by=.05),
                        limits=c(0,.2))
 
 p1+ ggtitle("Actual PDF")+ theme(legend.title = element_blank()) + p2 +
@@ -124,10 +123,10 @@ p1+ ggtitle("Actual PDF")+ theme(legend.title = element_blank()) + p2 +
   plot_layout(guides = 'collect')
 
 p1 <- ggplot(df_pdf_cdf) + geom_tile(aes(X, Y, fill= actual_cdf)) +
-  scale_fill_gradient2(low="blue", mid="cyan", high="purple", 
-                       midpoint=0.5,    
-                       breaks=seq(0,1,by=.2), 
-                       limits=c(0,1)) 
+  scale_fill_gradient2(low="blue", mid="cyan", high="purple",
+                       midpoint=0.5,
+                       breaks=seq(0,1,by=.2),
+                       limits=c(0,1))
 
 p2 <- ggplot(df_pdf_cdf) + geom_tile(aes(X, Y, fill= cdf_est)) +
   scale_fill_gradient2(low="blue", mid="cyan", high="purple",
@@ -140,8 +139,8 @@ p1+ ggtitle("Actual CDF") + theme(legend.title = element_blank()) + p2 +
   plot_layout(guides = 'collect')
 
 #' Reproduce actual and estimated Spearman and Kendall correlation coefficient
-#' results for **Table 2** in the text.
-#' 
+#' results for **Table 3** in the text.
+#'
 #' Actual Spearmans
 print(round(actual_spearmans,3))
 #' Estimated Spearmans
@@ -152,30 +151,108 @@ print(round(actual_kendall,3))
 print(round(kendall_est,3))
 
 
+#' Reproduce quantile estimate results on EUR/USD and GBP/USD as presented in
+#' **Table 4** in the text.
+
+#+ reproduce_real_data, echo=TRUE
+spread_data <- 
+  arrow::read_parquet("./eurusd_gbpusd_spread_2021_10.parquet")
+percs <- c(0.01,0.1,0.25,0.5,0.75,0.9,0.99)
+hermite_ests <- by(spread_data, list(spread_data$hr,spread_data$currency_pair), 
+        function(x){hermite_estimator(observations = log(x$spread_bps+1e-8))})
+quantiles_ests <- t(sapply(hermite_ests,FUN=function(x){exp(quant(x,percs))}))
+eur_usd_merged <- merge_hermite(as.list(hermite_ests)[1:24])
+gbp_usd_merged <- merge_hermite(as.list(hermite_ests)[25:48])
+gbp_all_hours <- exp(quant(gbp_usd_merged,percs))
+eur_all_hours <- exp(quant(eur_usd_merged,percs))
+dim(gbp_all_hours) <- c(1,length(percs))
+dim(eur_all_hours) <- c(1,length(percs))
+result <- data.frame(currency_pair = rep(attr(hermite_ests,"dimnames")[[2]], 
+                each=24), hour_utc = rep(attr(hermite_ests,"dimnames")[[1]],2),
+                quantiles_ests)
+result <- rbind(result, 
+        data.frame(currency_pair = "EUR/USD", hour_utc = "All", eur_all_hours))
+result <- rbind(result, 
+        data.frame(currency_pair = "GBP/USD", hour_utc = "All", gbp_all_hours))
+colnames(result) <- c("currency_pair", "hour_utc", paste0("p_",percs*100,"%"))
+print(result,digits=1)
+
+
+#' Reproduce sequential quantile estimate results on EUR/USD and GBP/USD as 
+#' presented in **Figure 6** in the text along with sequential Spearman
+#' and Kendall correlation estimates presented in **Figure 7** in the text.
+eur_data <- spread_data[which(spread_data$currency_pair == "EUR/USD" & 
+            spread_data$time_stamp >= as.Date("2021-10-07") & 
+              spread_data$time_stamp < as.Date("2021-10-08")),]
+gbp_data <-spread_data[which(spread_data$currency_pair == "GBP/USD" & 
+            spread_data$time_stamp >= as.Date("2021-10-07") & 
+              spread_data$time_stamp < as.Date("2021-10-08")),]
+eur_data <- eur_data[order(eur_data$time_stamp),]
+gbp_data <- gbp_data[order(gbp_data$time_stamp),]
+h_est_eur <- hermite_estimator(exp_weight_lambda = 0.05)
+h_est_gbp <- hermite_estimator(exp_weight_lambda = 0.05)
+h_est_bivariate <- hermite_estimator(est_type = "bivariate",
+                                     exp_weight_lambda = 0.05)
+output_eur <- rep(NA,nrow(eur_data))
+output_gbp <- rep(NA,nrow(gbp_data))
+output_spearman<- rep(NA,nrow(gbp_data))
+output_kendall<- rep(NA,nrow(gbp_data))
+for (idx in seq_len(nrow(eur_data))) {
+  current_obs_eur <- eur_data[idx,]$spread_bps
+  current_obs_gbp <- gbp_data[idx,]$spread_bps
+  h_est_eur <- update_sequential(h_est_eur,log(current_obs_eur+1e-8))
+  h_est_gbp <- update_sequential(h_est_gbp,log(current_obs_gbp +1e-8))
+  h_est_bivariate <- update_sequential(h_est_bivariate, 
+                        c(log(current_obs_eur+1e-8),log(current_obs_gbp+1e-8)))
+  output_eur[idx] <- exp(quant(h_est_eur,p=0.5))
+  output_gbp[idx] <- exp(quant(h_est_gbp,p=0.5))
+  output_spearman[idx] <- spearmans(h_est_bivariate)
+  output_kendall[idx] <- kendall(h_est_bivariate)
+}
+output_res_df_eur <- data.frame(time_stamp = eur_data$time_stamp, 
+                          median_spread = output_eur, currency_pair="EUR/USD") 
+output_res_df_gbp <- data.frame(time_stamp = gbp_data$time_stamp,
+                          median_spread = output_gbp, currency_pair="GBP/USD") 
+output_res_df <- rbind(output_res_df_eur,output_res_df_gbp)
+output_spearman_df <- data.frame(time_stamp = eur_data$time_stamp,
+                                correlation=output_spearman, type="spearman" )
+output_spearman_df <- output_spearman_df[seq(1,nrow(output_spearman_df),by=10),]
+output_kendall_df <- data.frame(time_stamp = eur_data$time_stamp, 
+                                correlation=output_kendall , type="kendall" )
+output_kendall_df <- output_kendall_df[seq(1,nrow(output_kendall_df),by=10),]
+output_correl_df <- rbind(output_spearman_df, output_kendall_df)
+output_correl_df <- output_correl_df[order(output_correl_df$time_stamp),]
+output_res_df_plot <- output_res_df[seq(1,nrow(output_res_df),by=10),]
+ggplot(output_res_df_plot,mapping=aes(x=time_stamp ,y=median_spread,color = 
+        currency_pair)) + geom_line() + xlab("Timestamp") + 
+         ylab("Median Spread (bps)")
+ggplot(output_correl_df,mapping=aes(x=time_stamp, y=correlation,color=type)) + 
+  geom_line() + xlab("Timestamp") + ylab("Correlation")
+
 #' Benchmark hermiter vs tdigest, updating with 1e6 observations. Reproduces
-#' **Figure 6** in the text.
+#' **Table 6** and **Figure 8** in the text.
 
 #+ benchmark_updating, echo=TRUE
 obs <- rnorm(1e6)
 bench_res <- microbenchmark::microbenchmark(
   t_digest = tdigest(obs),
-  hermite_N_10 = hermite_estimator(N = 10, standardize = T, observations = obs),
-  hermite_N_20 = hermite_estimator(N = 20, standardize = T, observations = obs),
-  hermite_N_30 = hermite_estimator(N = 30, standardize = T, observations = obs),
-  hermite_N_50 = hermite_estimator(N = 50, standardize = T, observations = obs),
+  hermite_N_10 = hermite_estimator(N = 10, observations = obs),
+  hermite_N_20 = hermite_estimator(N = 20, observations = obs),
+  hermite_N_30 = hermite_estimator(N = 30, observations = obs),
+  hermite_N_50 = hermite_estimator(N = 50, observations = obs),
   times = 20
 )
 autoplot(bench_res, log = TRUE)
 print(bench_res)
 
-#' Benchmark hermiter vs tdigest, quantile estimation. Reproduces **Figure 7** 
+#' Benchmark hermiter vs tdigest, quantile estimation. Reproduces **Figure 9**
 #' in the text.
 
 #+ benchmark_quantile_est, echo=TRUE
 obs <- rnorm(1e6)
 td <- tdigest(obs)
 h_est <-
-  hermite_estimator(N = 30, standardize = T, observations = obs)
+  hermite_estimator(observations = obs)
 p_1 <- 0.5
 p_100 <- seq(0.01, 1, 0.01)
 p_10000 <- seq(0.0001, 1, 0.0001)
@@ -205,7 +282,6 @@ calculate_miae_per_distro <- function(full_miae = FALSE) {
   distros_index <- c(1:5, 7:8, 11, 13:17, 21:28)
   numruns <- total_number_of_runs
   num_obs_vec <- c(1e4, 1e5, 1e6, 1e7)
-  # num_obs_vec <- c(1e4, 1e5, 1e6)
   if (full_miae == TRUE) {
     p <- randtoolbox::sobol(1000)
     norm_factor <- 1
@@ -237,7 +313,7 @@ calculate_miae_per_distro <- function(full_miae = FALSE) {
       res_t_digest_quant <- rep(0, numruns)
       for (run in c(1:numruns)) {
         obs <- r_func(num_obs)
-        h_est <- hermite_estimator(N = 30, standardize = T, observations = obs)
+        h_est <- hermite_estimator(observations = obs )
         td <- tdigest(obs)
         q_est_hermite <- h_est %>% quant(p)
         q_est_t_digest <- quantile(td, probs = p)
@@ -264,7 +340,7 @@ calculate_miae_per_distro <- function(full_miae = FALSE) {
     mae_t_digest_quant
   )
   result <- result %>% mutate(hermite_better_quant =
-                                ifelse(mae_hermite_quant < mae_t_digest_quant, 
+                                ifelse(mae_hermite_quant < mae_t_digest_quant,
                                        1, 0))
   return(result)
 }
@@ -284,44 +360,25 @@ calculate_miae <- function(miae_per_distro) {
 
 univar_quant_results_partial_per_distro <-
   calculate_miae_per_distro(full_miae = FALSE)
-univar_quant_results_full_per_distro <- 
+univar_quant_results_full_per_distro <-
   calculate_miae_per_distro(full_miae = TRUE)
 
 univar_quant_results_partial <-
   calculate_miae(univar_quant_results_partial_per_distro)
-univar_quant_results_full <- 
+univar_quant_results_full <-
   calculate_miae(univar_quant_results_full_per_distro)
 
-#' Reproduces **Table 3** in the text:
-#' 
+#' Reproduces **Table 5** in the text:
+#'
 print(univar_quant_results_full)
-#' Reproduces **Table 4** in the text:
-#' 
+#' Reproduces **Table 6** in the text:
+#'
 print(univar_quant_results_partial)
-
-univar_quant_results_partial_per_distro <- 
-  univar_quant_results_partial_per_distro %>% 
-  select(-c(hermite_better_quant)) 
-univar_quant_results_partial_per_distro <- univar_quant_results_partial_per_distro %>% relocate(num_obs,.before=distribution_name)
-univar_quant_results_partial_per_distro <- univar_quant_results_partial_per_distro %>% mutate(mae_hermite_quant = 1e2 *mae_hermite_quant,
-                                                                                              mae_t_digest_quant = 1e2 * mae_t_digest_quant)
-# colnames(univar_quant_results_partial_per_distro) <- c()
-kable(univar_quant_results_partial_per_distro , booktabs = TRUE,digits = 3,format = "html") %>% pack_rows(
-  index = c("n = 10,000" = 21, "n = 100,000" = 21)
-) %>% add_header_above(c(" " = 1, "Hermite" = 1, "t_digest" = 1)) %>% 
-  add_header_above(c("Distribution" = 1, "MIAE" = 2)) 
-
-univar_quant_results_partial_per_distro_form <- univar_quant_results_partial_per_distro
-colnames(univar_quant_results_partial_per_distro_form) <- c()
-kable(univar_quant_results_partial_per_distro_form , booktabs = TRUE,digits = 1,format = "html") %>% 
-  add_header_above(c(" "=1, " "=1, "Hermite" = 1, "t_digest" = 1)) %>% 
-  add_header_above(c("Observations" = 1, "Distribution" = 1, "MIAE (x 10^-2)" = 2)) 
-
 
 #' R implementation of count matrix algorithm of Xiao, Wei. "Novel online
 #' algorithms for nonparametric correlations with application to analyze sensor
 #' data." 2019 IEEE International Conference on Big Data (Big Data). IEEE,
-#' as an S3 class. The implementation below follows 
+#' as an S3 class. The implementation below follows
 #' https://github.com/wxiao0421/onlineNPCORR/ reasonably closely in parts.
 
 #+ count_matrix_def, echo=TRUE
@@ -447,19 +504,19 @@ get_kendall.count_matrix_calculator <- function(this) {
   concord_pairs <- sum(this$count_matrix * count_mat_sum)
   ties_in_x <- 0
   for (i in 1:len_n_row) {
-    ties_in_x <- ties_in_x + (this$n_row[i] ^ 2 - 
+    ties_in_x <- ties_in_x + (this$n_row[i] ^ 2 -
                                 sum(this$count_matrix[i, ] ^ 2)) / 2
   }
   ties_in_y <- 0
   for (j in 1:len_n_col) {
-    ties_in_y <- ties_in_y + (this$n_col[j] ^ 2 - 
+    ties_in_y <- ties_in_y + (this$n_col[j] ^ 2 -
                                 sum(this$count_matrix[, j] ^ 2)) / 2
   }
   ties_in_x_and_y <- sum(this$count_matrix * (this$count_matrix - 1)) / 2
   discord_pairs <- this$num_obs * (this$num_obs - 1) / 2 - concord_pairs -
     ties_in_x - ties_in_y - ties_in_x_and_y
-  corr <- (concord_pairs - discord_pairs) / 
-    sqrt((concord_pairs + discord_pairs + ties_in_x) * 
+  corr <- (concord_pairs - discord_pairs) /
+    sqrt((concord_pairs + discord_pairs + ties_in_x) *
            (concord_pairs + discord_pairs + ties_in_y))
   return(corr)
 }
@@ -500,7 +557,7 @@ for (num_obs in num_obs_inpt) {
         count_matrix_calculator(cut_points_inpt = 100,
                                 normalize = F)
       hermite_est <-
-        hermite_estimator_bivar(N = 30, standardize = F)
+        hermite_estimator(est_type = "bivariate", standardize = F)
       for (i in seq_len(nrow(obs_mat))) {
         matrix_est_c100 <- matrix_est_c100 %>% update_matrix(obs_mat[i, ])
         matrix_est_c30 <-
@@ -539,7 +596,7 @@ result <-
     mae_hermite_spear
   )
 summary_by_rho_and_num_obs <-
-  result %>% 
+  result %>%
   group_by(num_obs_vec, rho_vec) %>%
   summarise(
     mae_matrix_kendall = mean(mae_matrix_kendall),
@@ -549,7 +606,7 @@ summary_by_rho_and_num_obs <-
     mae_hermite_spear = mean(mae_hermite_spear)
   )
 summary_num_obs_kendall <- summary_by_rho_and_num_obs %>%
-  group_by(num_obs_vec) %>% 
+  group_by(num_obs_vec) %>%
   summarise(
     mae_matrix_kendall_avg =
       mean(mae_matrix_kendall) * 100,
@@ -570,9 +627,9 @@ summary_num_obs_spear  <- summary_by_rho_and_num_obs %>%
       sd(mae_hermite_spear) * 100
   )
 
-#' Reproduces **Table 5** in the text.
+#' Reproduces **Table 7** in the text.
 print(summary_num_obs_spear)
-#' Reproduces **Table 6** in the text.
+#' Reproduces **Table 8** in the text.
 print(summary_num_obs_kendall)
 
 

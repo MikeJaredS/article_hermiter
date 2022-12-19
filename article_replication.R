@@ -230,7 +230,7 @@ ggplot(output_correl_df,mapping=aes(x=time_stamp, y=correlation,color=type)) +
   geom_line() + xlab("Timestamp") + ylab("Correlation")
 
 #' Benchmark hermiter vs tdigest, updating with 1e6 observations. Reproduces
-#' **Table 6** and **Figure 8** in the text.
+#' **Figure 8** in the text.
 
 #+ benchmark_updating, echo=TRUE
 obs <- rnorm(1e6)

@@ -1,12 +1,13 @@
 #' Replication output for article, "hermiter: R package for Sequential
 #' Nonparametric Estimation". The output below corresponds to the output
 #' produced by running knitr::spin() on the article_replication.R script,
-#' with short_run set to TRUE.
+#' with short_run set to TRUE
 #'
 #' Load libraries.
 
 #+ initialization, echo=TRUE
 options(dplyr.summarise.inform = F)
+if(!require(benchden)) devtools::install_github("thmild/benchden")
 library(hermiter)
 library(tdigest)
 library(microbenchmark)
@@ -15,11 +16,7 @@ library(randtoolbox)
 library(ggplot2)
 library(patchwork)
 library(arrow)
-
-#' Set random seed for reproducibility.
-
-#+ set_rand_seed, echo=TRUE
-set.seed(10)
+library(colorspace)
 
 #' Choose whether to run quick version of reproduction script i.e. under
 #' an hour of processing time on hardware specified in manuscript versus
@@ -32,6 +29,37 @@ if (short_run == TRUE){
 } else {
   total_number_of_runs <- 100
 }
+
+#' Set random seed for reproducibility.
+
+#+ set_rand_seed, echo=TRUE
+set.seed(10)
+
+
+#' Reproduce the output of the merge code blocks in section 8.5
+
+#' First block with standardize = FALSE
+observations_1 <- rlogis(n=1000)
+observations_2 <- rlogis(n=1000)
+hermite_est_1 <- hermite_estimator(N=50,standardize=FALSE,
+                                   observations = observations_1)
+hermite_est_2 <- hermite_estimator(N=50,standardize=FALSE,
+                                   observations = observations_2)
+hermite_est_merged <- merge_hermite(list(hermite_est_1, 
+                                         hermite_est_2))
+hermite_est_full  <- hermite_estimator(N=50,standardize=FALSE,observations = 
+                                         c(observations_1,observations_2))
+all.equal(hermite_est_merged,hermite_est_full)
+
+#' Second block with standardize = TRUE
+observations_1 <- rlogis(n=1000)
+observations_2 <- rlogis(n=1000)
+hermite_est_1 <- hermite_estimator(N=50,standardize=TRUE,observations=observations_1)
+hermite_est_2 <- hermite_estimator(N=50,standardize=TRUE,observations=observations_2)
+hermite_est_merged <- merge_hermite(list(hermite_est_1,hermite_est_2))
+hermite_est_full  <- hermite_estimator(N=50,standardize=TRUE,observations = 
+                                         c(observations_1,observations_2))
+all.equal(hermite_est_merged,hermite_est_full)
 
 #' Reproduce univariate PDF, CDF and Q-Q plot figures i.e. **Figures 1, 2, 3**
 #' in the text respectively.
@@ -50,24 +78,34 @@ df_pdf_cdf <- data.frame(x,pdf_est,cdf_est,actual_pdf,actual_cdf)
 actual_quantiles <- qlogis(p)
 df_quant <- data.frame(p,quantile_est,actual_quantiles)
 
-ggplot(df_pdf_cdf,aes(x=x)) + geom_line(aes(y=pdf_est, colour="Estimated")) +
+pdf_comp_plot <- ggplot(df_pdf_cdf,aes(x=x)) + 
+  geom_line(aes(y=pdf_est, colour="Estimated")) +
   geom_line(aes(y=actual_pdf, colour="Actual")) +
   scale_colour_manual("",
                       breaks = c("Estimated", "Actual"),
                       values = c("blue", "black")) + ylab("Probability Density")
 
-ggplot(df_pdf_cdf,aes(x=x)) + geom_line(aes(y=cdf_est, colour="Estimated")) +
+pdf_comp_plot / (ggplot(df_pdf_cdf,aes(x=x,y=pdf_est-actual_pdf)) +
+                   geom_line(color="red")+ ylab("Estimated - Actual"))
+  
+
+cdf_comp_plot <- ggplot(df_pdf_cdf,aes(x=x)) + 
+  geom_line(aes(y=cdf_est, colour="Estimated")) +
   geom_line(aes(y=actual_cdf, colour="Actual")) +
   scale_colour_manual("",
                       breaks = c("Estimated", "Actual"),
                       values = c("blue", "black")) +
   ylab("Cumulative Probability")
+cdf_comp_plot / (ggplot(df_pdf_cdf,aes(x=x,y=cdf_est-actual_cdf)) +
+                   geom_line(color="red")+ ylab("Estimated - Actual"))
 
-ggplot(df_quant,aes(x=actual_quantiles)) + geom_point(aes(y=quantile_est),
-                                                      color="blue") +
+quantile_comp_plot <-ggplot(df_quant,aes(x=actual_quantiles)) + 
+  geom_point(aes(y=quantile_est), color="blue") +
   geom_abline(slope=1,intercept = 0) +xlab("Theoretical Quantiles") +
   ylab("Estimated Quantiles")
-
+quantile_comp_plot / (ggplot(df_quant,aes(x=p,y=quantile_est-
+            actual_quantiles)) + geom_point(color="red") + 
+              ylab("Estimated - Actual"))
 
 #' Reproduce bivariate PDF, CDF figures, namely **Figure 4** and **Figure 5** in
 #' the text respectively.
@@ -107,36 +145,48 @@ actual_kendall <- cor(observations_mat,method = "kendall")[1,2]
 df_pdf_cdf <- data.frame(x_grid,pdf_est,cdf_est,actual_pdf,actual_cdf)
 
 p1 <- ggplot(df_pdf_cdf) + geom_tile(aes(X, Y, fill= actual_pdf)) +
-  scale_fill_gradient2(low="blue", mid="cyan", high="purple",
-                       midpoint=.1,
-                       breaks=seq(0,.2,by=.05),
-                       limits=c(0,.2))
+  scale_fill_continuous_sequential(palette="Oslo",
+                                   breaks=seq(0,.2,by=.05),
+                                   limits=c(0,.2))
 
 p2 <- ggplot(df_pdf_cdf) + geom_tile(aes(X, Y, fill= pdf_est)) +
-  scale_fill_gradient2(low="blue", mid="cyan", high="purple",
-                       midpoint=.1,
-                       breaks=seq(0,.2,by=.05),
-                       limits=c(0,.2))
+  scale_fill_continuous_sequential(palette="Oslo",
+                                   breaks=seq(0,.2,by=.05),
+                                   limits=c(0,.2))
 
-p1+ ggtitle("Actual PDF")+ theme(legend.title = element_blank()) + p2 +
+pdf_diff <- ggplot(df_pdf_cdf) + geom_tile(aes(X, Y, fill 
+                                               = pdf_est - actual_pdf)) +
+  scale_fill_continuous_sequential(palette="Oslo",
+                                   breaks=seq(-.04,.04,by=.04),
+                                   limits=c(-.04,.04))
+
+(p1+ ggtitle("Actual PDF")+ theme(legend.title = element_blank()) + p2 +
   ggtitle("Estimated PDF") +theme(legend.title = element_blank()) +
-  plot_layout(guides = 'collect')
+  plot_layout(guides = 'collect')) / (pdf_diff + 
+  ggtitle("Estimated PDF - Actual PDF") + 
+    theme(legend.title = element_blank()))
 
 p1 <- ggplot(df_pdf_cdf) + geom_tile(aes(X, Y, fill= actual_cdf)) +
-  scale_fill_gradient2(low="blue", mid="cyan", high="purple",
-                       midpoint=0.5,
+  scale_fill_continuous_sequential(palette="Oslo",
                        breaks=seq(0,1,by=.2),
                        limits=c(0,1))
 
 p2 <- ggplot(df_pdf_cdf) + geom_tile(aes(X, Y, fill= cdf_est)) +
-  scale_fill_gradient2(low="blue", mid="cyan", high="purple",
-                       midpoint=0.5,
-                       breaks=seq(0,1,by=.2), #breaks in the scale bar
-                       limits=c(0,1))
+  scale_fill_continuous_sequential(palette="Oslo",
+                                   breaks=seq(0,1,by=.2),
+                                   limits=c(0,1))
 
-p1+ ggtitle("Actual CDF") + theme(legend.title = element_blank()) + p2 +
+cdf_diff <- ggplot(df_pdf_cdf) + geom_tile(aes(X, Y, fill 
+                                               = cdf_est - actual_cdf)) +
+  scale_fill_continuous_sequential(palette="Oslo",
+                                   breaks=seq(-.02,.02,by=.02),
+                                   limits=c(-.02,.02))
+
+(p1+ ggtitle("Actual CDF") + theme(legend.title = element_blank()) + p2 +
   ggtitle("Estimated CDF") + theme(legend.title = element_blank())+
-  plot_layout(guides = 'collect')
+  plot_layout(guides = 'collect')) / (cdf_diff + 
+                                        ggtitle("Estimated CDF - Actual CDF") + 
+                                        theme(legend.title = element_blank()))
 
 #' Reproduce actual and estimated Spearman and Kendall correlation coefficient
 #' results for **Table 3** in the text.
@@ -155,7 +205,7 @@ print(round(kendall_est,3))
 #' **Table 4** in the text.
 
 #+ reproduce_real_data, echo=TRUE
-spread_data <- 
+spread_data <-
   arrow::read_parquet("./eurusd_gbpusd_spread_2021_10.parquet")
 percs <- c(0.01,0.1,0.25,0.5,0.75,0.9,0.99)
 hermite_ests <- by(spread_data, list(spread_data$hr,spread_data$currency_pair), 
@@ -177,16 +227,15 @@ result <- rbind(result,
 colnames(result) <- c("currency_pair", "hour_utc", paste0("p_",percs*100,"%"))
 print(result,digits=1)
 
-
 #' Reproduce sequential quantile estimate results on EUR/USD and GBP/USD as 
 #' presented in **Figure 6** in the text along with sequential Spearman
 #' and Kendall correlation estimates presented in **Figure 7** in the text.
 eur_data <- spread_data[which(spread_data$currency_pair == "EUR/USD" & 
-            spread_data$time_stamp >= as.Date("2021-10-07") & 
-              spread_data$time_stamp < as.Date("2021-10-08")),]
+            spread_data$time_stamp >= as.POSIXct(as.Date("2021-10-07")) & 
+              spread_data$time_stamp < as.POSIXct(as.Date("2021-10-08"))),]
 gbp_data <-spread_data[which(spread_data$currency_pair == "GBP/USD" & 
-            spread_data$time_stamp >= as.Date("2021-10-07") & 
-              spread_data$time_stamp < as.Date("2021-10-08")),]
+            spread_data$time_stamp >= as.POSIXct(as.Date("2021-10-07")) & 
+              spread_data$time_stamp < as.POSIXct(as.Date("2021-10-08"))),]
 eur_data <- eur_data[order(eur_data$time_stamp),]
 gbp_data <- gbp_data[order(gbp_data$time_stamp),]
 h_est_eur <- hermite_estimator(exp_weight_lambda = 0.05)
@@ -227,10 +276,10 @@ ggplot(output_res_df_plot,mapping=aes(x=time_stamp ,y=median_spread,color =
         currency_pair)) + geom_line() + xlab("Timestamp") + 
          ylab("Median Spread (bps)")
 ggplot(output_correl_df,mapping=aes(x=time_stamp, y=correlation,color=type)) + 
-  geom_line() + xlab("Timestamp") + ylab("Correlation")
+  geom_line() +geom_smooth() + xlab("Timestamp") + ylab("Correlation")
 
-#' Benchmark hermiter vs tdigest, updating with 1e6 observations. Reproduces
-#' **Figure 8** in the text.
+#' Benchmark hermiter vs tdigest (parallel computation enabled), updating 
+#' with 1e6 observations. Reproduces **Figure 8** in the text.
 
 #+ benchmark_updating, echo=TRUE
 obs <- rnorm(1e6)
@@ -245,7 +294,24 @@ bench_res <- microbenchmark::microbenchmark(
 autoplot(bench_res, log = TRUE)
 print(bench_res)
 
-#' Benchmark hermiter vs tdigest, quantile estimation. Reproduces **Figure 9**
+#' Benchmark hermiter vs tdigest (parallel computation disabled), updating 
+#' with 1e6 observations. Reproduces **Figure 9** in the text.
+
+#+ benchmark_updating_serial, echo=TRUE
+options(hermiter.parallel = FALSE)
+bench_res <- microbenchmark::microbenchmark(
+  t_digest = tdigest(obs),
+  hermite_N_10 = hermite_estimator(N = 10, observations = obs),
+  hermite_N_20 = hermite_estimator(N = 20, observations = obs),
+  hermite_N_30 = hermite_estimator(N = 30, observations = obs),
+  hermite_N_50 = hermite_estimator(N = 50, observations = obs),
+  times = 20
+)
+autoplot(bench_res, log = TRUE)
+print(bench_res)
+options(hermiter.parallel = TRUE)
+
+#' Benchmark hermiter vs tdigest, quantile estimation. Reproduces **Figure 10**
 #' in the text.
 
 #+ benchmark_quantile_est, echo=TRUE
@@ -632,6 +698,24 @@ print(summary_num_obs_spear)
 #' Reproduces **Table 8** in the text.
 print(summary_num_obs_kendall)
 
+
+#' Reproduces **Figure 11** in the text.
+pivoted_summary <- summary_by_rho_and_num_obs %>% 
+  tidyr::pivot_longer(cols=-c(num_obs_vec,rho_vec)) %>% 
+  tidyr::separate(col=name,sep = "_",into=
+                    c("metric","method","correlation_type")) %>% 
+  mutate(correlation_type=ifelse(correlation_type == 
+                                   "spear","Spearman","Kendall"))
+
+ggplot(pivoted_summary,
+            aes(x=as.factor(num_obs_vec),y=value,fill=method)) + 
+            geom_violin(position=position_dodge(.5)) +
+            stat_summary(fun=mean, geom="point", shape=23, size=2, 
+                         position = position_dodge(.5))+
+            scale_fill_brewer(palette="Blues") + 
+            facet_wrap(~correlation_type,nrow=1) + 
+            xlab("Number of Observations")+
+            ylab("Mean Absolute Error (MAE)")+ labs(fill = "Algorithm")
 
 #' Computational Details
 
